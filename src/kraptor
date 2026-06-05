@@ -1,0 +1,64 @@
+// Nuvio'nun yerleşik cheerio kütüphanesini dahil ediyoruz (HTML parçalamak için)
+const cheerio = require('cheerio-without-node-native');
+
+/**
+ * Nuvio'nun video linklerini toplamak için çağırdığı ana fonksiyon.
+ * @param {string} tmdbId - Filmin veya dizinin TMDB benzersiz ID'si
+ * @param {string} mediaType - "movie" veya "tv"
+ * @param {string} season - Sezon numarası (Diziler için)
+ * @param {string} episode - Bölüm numarası (Diziler için)
+ */
+function getStreams(tmdbId, mediaType, season, episode) {
+    // BURAYI DÜZENLEYİN: cs-kraptor'un hedef aldığı yerli sitenin adresini yazın
+    const baseUrl = 'https://hdfilmcehennemi.life'; 
+    
+    // Arama yapılacak URL yapısı (Örn: ://site.com)
+    const searchUrl = `${baseUrl}/search/${tmdbId}`;
+
+    console.log(`[Kraptor Port] TMDB ID Aranıyor: ${tmdbId} (${mediaType})`);
+
+    // Fetch isteği başlatılıyor
+    return fetch(searchUrl, {
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+    })
+    .then(response => {
+        if (!response.ok) throw new Error('Siteye bağlanılamadı');
+        return response.text();
+    })
+    .then(html => {
+        const $ = cheerio.load(html);
+        const streams = [];
+
+        // BURAYI DÜZENLEYİN: cs-kraptor Kotlin kodundaki CSS seçicileri buraya uyarlayın
+        // Sayfa içindeki iframe, video ve kaynak etiketlerini tarıyoruz
+        $('iframe, source, video').each((i, el) => {
+            let videoUrl = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('file');
+            
+            if (videoUrl) {
+                // Link "//vidmoly.me/..." gibi başlıyorsa başına https: ekle
+                if (videoUrl.startsWith('//')) videoUrl = 'https:' + videoUrl;
+
+                // cs-kraptor'un link ayıklama (Extractor) filtresi
+                if (videoUrl.includes('m3u8') || videoUrl.includes('.mp4') || videoUrl.includes('vidmoly')) {
+                    streams.push({
+                        name: "Kraptor Port Dev",
+                        title: videoUrl.includes('dublaj') ? "Türkçe Dublaj" : "Türkçe Altyazı",
+                        url: videoUrl,
+                        quality: "1080p" // Statik veya dinamik kalite değeri
+                    });
+                }
+            }
+        });
+
+        return streams; // Nuvio'ya bulunan akış listesini fırlatır
+    })
+    .catch(error => {
+        console.error('[Kraptor Port] Hata Alındı:', error.message);
+        return []; // Hata durumunda boş liste dönerek uygulamanın çökmesini engeller
+    });
+}
+
+// Fonksiyonu Nuvio'nun görebilmesi için dışa aktarıyoruz
+module.exports = { getStreams };
